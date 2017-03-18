@@ -7,13 +7,18 @@ import (
 	"os/exec"
 	"github.com/fsnotify/fsnotify"
 	"runtime"
-	//"io/ioutil"
-
 	"bufio"
-	//"reflect"
-
+	"bytes"
+	"strings"
 )
 
+type Ignore struct {
+	ignore []string // Slice of the directory names that will be ignored.
+	ignoreMap map[string]bool // Verify if dir in ignore. Maps the path to a bool.
+	w *fsnotify.Watcher
+}
+
+// Return a slice with all the lines of a file
 func readLine(path string) []string {
 	f, _ := os.Open(path)
 	defer f.Close()
@@ -43,42 +48,32 @@ func main() {
 	for _, v := range ignore {
 		ignoreMap[v] = true
 	}
+
+	i := Ignore{ignore, ignoreMap, nil}
+
+
 	fmt.Println(ignore)
 
-	watcher := newWatcher()
-	_ = watcher
+	i.newWatcher()
 
-	dirs := Walker(ignore, root)
+
+	dirs := Walker(i, root)
 	fmt.Println(dirs)
 
 	// Add a watcher to all directories.
 	var dirMap = make(map[string]bool, len(dirs))
 	for _, v := range dirs {
 		dirMap[v] = true
-		watcher.Add(v)
+		i.w.Add(v)
 	}
+
+
 
 	done := make(chan bool)
 	<- done
-
-	//d, _ := define_directories(root)
-	//
-	//a := len(d)
-	//fmt.Println(a)
-	//
-
-	//err := watcher.Add("C:/Users/vik/Dropbox/Code")
-	//
-	//if err != nil {
-	//	fmt.Println(err)
-	//}
-
-	//done := make(chan bool)
-	//<- done
-	// execute("dropbox", "exclude")
 }
 
-// Copied form path module. Only this slice will not be sorted.
+// Return the files and directories in a directory. The result is unsorted.
 func readDirNames(dirname string) []os.FileInfo {
 	f, err := os.Open(dirname)
 	if err != nil {
@@ -94,7 +89,7 @@ func readDirNames(dirname string) []os.FileInfo {
 
 // Walk the root directories and follow every directory that is not ignored.
 // .git directory is automatically ignored.
-func Walker(ignore []string, root string) []string {
+func Walker(i Ignore, root string) []string {
 	var dirs = []string{root}
 
 	// Retrieve all names in the root directory
@@ -103,14 +98,16 @@ func Walker(ignore []string, root string) []string {
 			var walk_dir = true
 
 			// If the directory is in the ignore slice, the directory may not be walked.
-			for _, ignore_dir := range ignore {
+			for _, ignore_dir := range i.ignore {
 				if ignore_dir == d.Name() {
 					walk_dir = false
 					break
 				}
 			}
-			if walk_dir {
-				dirs = append(dirs, Walker(ignore, filepath.Join(root, d.Name()))...)
+			if walk_dir {  // Walk this directory
+				dirs = append(dirs, Walker(i, filepath.Join(root, d.Name()))...)
+			} else { // ignore the directory in dropbox
+				go dbexclude(filepath.Join(root, d.Name()))
 			}
 		}
 	}
@@ -119,9 +116,11 @@ func Walker(ignore []string, root string) []string {
 
 
 // Run a shell/ cmd command.
-func execute(bin string, args ...string) {
+func execute(bin string, args ...string) string{
 	cmd := exec.Command(bin, args...)
-	cmd.Stdout = os.Stdout
+	var b  bytes.Buffer
+
+	cmd.Stdout = &b
 	cmd.Stderr = os.Stderr
 
 	err := cmd.Run()
@@ -129,10 +128,11 @@ func execute(bin string, args ...string) {
 	if err != nil {
 		fmt.Printf("%v\n", err)
 	}
+	return b.String()
 }
 
 // Create a new file watcher. This function describes the callback events.
-func newWatcher() *fsnotify.Watcher {
+func (i *Ignore)newWatcher() {
 	watcher, err := fsnotify.NewWatcher()
 
 	if err != nil {
@@ -143,24 +143,24 @@ func newWatcher() *fsnotify.Watcher {
 		for {
 			select {
 			case event := <-watcher.Events:
-				eventHandler(event, watcher)
+				i.eventHandler(event)
 
-				println("Event:", event.Name, event.Op.String())
+				fmt.Println("Event:", event.Name, event.Op.String())
 			case err := <-watcher.Errors:
-				println("Errors:", err)
+				fmt.Println("Errors:", err)
 			}
 		}
 	}()
-	return watcher
+	i.w = watcher
 }
 
 // Handle the file events
-func eventHandler(e fsnotify.Event, w *fsnotify.Watcher) {
+func (i *Ignore)eventHandler(e fsnotify.Event) {
 	action := e.Op.String()
 	if action == "REMOVE" || action == "RENAME"{
 		// fsnotify cannot remove watcher on removed files/ dirs.
-		// w.Remove(e.Name) <- Throws a panic.
-	} else {
+		// i.w.Remove(e.Name) <- Throws a panic.
+	} else if e.Op.String() == "CREATE"{
 		fs, err := os.Stat(e.Name)
 
 		if err != nil {
@@ -168,11 +168,40 @@ func eventHandler(e fsnotify.Event, w *fsnotify.Watcher) {
 		}
 
 		if fs.IsDir() {
-			if e.Op.String() == "CREATE" {
-				fmt.Println("Added ", e.Name)
-				w.Add(e.Name)
+			if i.ignoreMap[filepath.Base(e.Name)] {
+				go dbexclude(e.Name)
+			} else {
+				fmt.Println("Added ", e.Name, "to watcher")
+				i.w.Add(e.Name)
 			}
+		}
+	}
+}
 
+func dbexclude(path string) {
+	s := execute("dropbox", "exclude", "add", path)
+
+	fmt.Println(s)
+
+
+}
+
+func dbinclude(im map[string]bool) {
+	// list all ignored directories.
+	ls := execute("dropbox", "exclude")
+	temp := strings.Split(ls, "\n")
+	for _, v := range temp {
+		if v != "Excluded: " {
+			abs_v, _ := filepath.Abs(v)
+
+			if im[filepath.Base(abs_v)] {
+				_, err := os.Stat(abs_v)
+				if os.IsNotExist(err) {
+					// include the files to sync
+					s := execute("dropbox", "exclude", "remove", v)
+					fmt.Println(s, abs_v)
+				}
+			}
 		}
 	}
 }
