@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"github.com/fsnotify/fsnotify"
-	"runtime"
 	"bufio"
 	"bytes"
 	"strings"
@@ -36,13 +35,9 @@ func readLine(path string) []string {
 
 func main() {
 	var root string
-	if runtime.GOOS == "windows" {
-		root = "C:/Users/vik/Dropbox/Code"
-	}else {
-		root = "/home/ritchie46/Dropbox"
-	}
-
-
+	f, _ :=  os.Executable()
+	root = filepath.Dir(f)
+	fmt.Println(root)
 	ignore := readLine(root + "/.dbignore")
 	ignoreMap := make(map[string]bool, len(ignore))
 	for _, v := range ignore {
@@ -50,15 +45,11 @@ func main() {
 	}
 
 	i := Ignore{ignore, ignoreMap, nil}
-
-
-	fmt.Println(ignore)
+	fmt.Println("Ignored directory names", ignore)
 
 	i.newWatcher()
 
-
 	dirs := Walker(i, root)
-	fmt.Println(dirs)
 
 	// Add a watcher to all directories.
 	var dirMap = make(map[string]bool, len(dirs))
