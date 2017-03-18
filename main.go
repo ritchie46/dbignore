@@ -39,14 +39,22 @@ func main() {
 
 
 	ignore := readLine(root + "/.dbignore")
+	ignoreMap := make(map[string]bool, len(ignore))
+	for _, v := range ignore {
+		ignoreMap[v] = true
+	}
 	fmt.Println(ignore)
 
 	watcher := newWatcher()
 	_ = watcher
 
 	dirs := Walker(ignore, root)
+	fmt.Println(dirs)
 
+	// Add a watcher to all directories.
+	var dirMap = make(map[string]bool, len(dirs))
 	for _, v := range dirs {
+		dirMap[v] = true
 		watcher.Add(v)
 	}
 
@@ -84,56 +92,29 @@ func readDirNames(dirname string) []os.FileInfo {
 	return names
 }
 
-// Walk the root directories and follow every dir that is not ignored.
+// Walk the root directories and follow every directory that is not ignored.
+// .git directory is automatically ignored.
 func Walker(ignore []string, root string) []string {
-	//fmt.Println("new Walker call", root)
-
 	var dirs = []string{root}
+
+	// Retrieve all names in the root directory
 	for _, d := range readDirNames(root) {
-		if d.IsDir() {
+		if d.IsDir() && d.Name() != ".git"{
 			var walk_dir = true
-			var ignore_dir string
-			for _, ignore_dir = range ignore {
+
+			// If the directory is in the ignore slice, the directory may not be walked.
+			for _, ignore_dir := range ignore {
 				if ignore_dir == d.Name() {
 					walk_dir = false
 					break
 				}
 			}
 			if walk_dir {
-				//w.Add(p)
 				dirs = append(dirs, Walker(ignore, filepath.Join(root, d.Name()))...)
 			}
 		}
 	}
 	return dirs
-}
-
-
-// Find al the directories recursively
-// Path is the root
-func define_directories(path string) ([]string, error){
-	directories := [] string{}
-
-	// Callback function from filepath.Walk
-	var wf = func(path string, fi os.FileInfo, err error) error {
-
-		d := filepath.Dir(path)
-
-		if len(directories) == 0 {
-			directories = append(directories, d)
-
-		} else if d != directories[len(directories) - 1] {
-			directories = append(directories, d)
-		}
-		return err
-	}
-
-	err := filepath.Walk(path, wf)
-
-	if err != nil {
-		return nil, err
-	}
-	return directories, nil
 }
 
 
@@ -158,18 +139,40 @@ func newWatcher() *fsnotify.Watcher {
 		println(err)
 	}
 
-	//defer watcher.Close()
-
-
 	go func() {
 		for {
 			select {
 			case event := <-watcher.Events:
-				println("Event:", event.Name)
+				eventHandler(event, watcher)
+
+				println("Event:", event.Name, event.Op.String())
 			case err := <-watcher.Errors:
 				println("Errors:", err)
 			}
 		}
 	}()
 	return watcher
+}
+
+// Handle the file events
+func eventHandler(e fsnotify.Event, w *fsnotify.Watcher) {
+	action := e.Op.String()
+	if action == "REMOVE" || action == "RENAME"{
+		// fsnotify cannot remove watcher on removed files/ dirs.
+		// w.Remove(e.Name) <- Throws a panic.
+	} else {
+		fs, err := os.Stat(e.Name)
+
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		if fs.IsDir() {
+			if e.Op.String() == "CREATE" {
+				fmt.Println("Added ", e.Name)
+				w.Add(e.Name)
+			}
+
+		}
+	}
 }
