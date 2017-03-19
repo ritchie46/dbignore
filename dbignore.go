@@ -35,9 +35,12 @@ func readLine(path string) []string {
 
 func main() {
 	var root string
-	f, _ :=  os.Executable()
-	root = filepath.Dir(f)
-	fmt.Println(root)
+	if len(os.Args) == 0 {
+		f, _ :=  os.Executable()
+		root = filepath.Dir(f)
+	}
+
+	fmt.Println("Root:", root)
 	ignore := readLine(root + "/.dbignore")
 	ignoreMap := make(map[string]bool, len(ignore))
 	for _, v := range ignore {
@@ -45,7 +48,7 @@ func main() {
 	}
 
 	i := Ignore{ignore, ignoreMap, nil}
-	fmt.Println("Ignored directory names", ignore)
+	fmt.Println("Ignored directory names:", ignore)
 
 	i.newWatcher()
 
