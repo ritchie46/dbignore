@@ -10,7 +10,7 @@ Installing node_modules won't cause a cpu stress test anymore!
 
 
 ## Installation
-Build from source.
+Build from source or download a binary from the [build directory](./build)
 
 ## Usage
 Put the .dbignore file in the root of the directory that you want watched. All directories will be watched recursively.
