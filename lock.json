@@ -1,0 +1,21 @@
+{
+    "memo": "",
+    "projects": [
+        {
+            "name": "github.com/fsnotify/fsnotify",
+            "branch": "master",
+            "revision": "7d7316ed6e1ed2de075aab8dfc76de5d158d66e1",
+            "packages": [
+                "."
+            ]
+        },
+        {
+            "name": "golang.org/x/sys",
+            "branch": "master",
+            "revision": "99f16d856c9836c42d24e7ab64ea72916925fa97",
+            "packages": [
+                "unix"
+            ]
+        }
+    ]
+}

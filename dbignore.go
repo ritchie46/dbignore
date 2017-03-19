@@ -32,15 +32,18 @@ func readLine(path string) []string {
 	return s
 }
 
-
+// Put compiled file next to the .dbingore file,
+// or call the executable and pass the directory of the .dbignore file.
 func main() {
 	var root string
 	if len(os.Args) == 0 {
 		f, _ :=  os.Executable()
 		root = filepath.Dir(f)
+	}else {
+		root = os.Args[1]
 	}
 
-	fmt.Println("Root:", root)
+	fmt.Println("Root directory:", root)
 	ignore := readLine(root + "/.dbignore")
 	ignoreMap := make(map[string]bool, len(ignore))
 	for _, v := range ignore {
@@ -51,7 +54,6 @@ func main() {
 	fmt.Println("Ignored directory names:", ignore)
 
 	i.newWatcher()
-
 	dirs := Walker(i, root)
 
 	// Add a watcher to all directories.
@@ -61,8 +63,7 @@ func main() {
 		i.w.Add(v)
 	}
 
-
-
+	// Keep alive
 	done := make(chan bool)
 	<- done
 }
@@ -120,7 +121,7 @@ func execute(bin string, args ...string) string{
 	err := cmd.Run()
 
 	if err != nil {
-		fmt.Printf("%v\n", err)
+		fmt.Println(err)
 	}
 	return b.String()
 }
@@ -165,19 +166,17 @@ func (i *Ignore)eventHandler(e fsnotify.Event) {
 			if i.ignoreMap[filepath.Base(e.Name)] {
 				go dbexclude(e.Name)
 			} else {
-				fmt.Println("Added ", e.Name, "to watcher")
+				fmt.Println("Added directory", e.Name, "to watcher")
 				i.w.Add(e.Name)
 			}
 		}
 	}
 }
 
+// Use the Dropbox cli to exclude a directory.
 func dbexclude(path string) {
 	s := execute("dropbox", "exclude", "add", path)
-
 	fmt.Println(s)
-
-
 }
 
 func dbinclude(im map[string]bool) {

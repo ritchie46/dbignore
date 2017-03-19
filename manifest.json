@@ -1,0 +1,7 @@
+{
+    "dependencies": {
+        "github.com/fsnotify/fsnotify": {
+            "branch": "master"
+        }
+    }
+}
