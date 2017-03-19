@@ -11,27 +11,6 @@ import (
 	"strings"
 )
 
-type Ignore struct {
-	ignore []string // Slice of the directory names that will be ignored.
-	ignoreMap map[string]bool // Verify if dir in ignore. Maps the path to a bool.
-	w *fsnotify.Watcher
-}
-
-// Return a slice with all the lines of a file
-func readLine(path string) []string {
-	f, _ := os.Open(path)
-	defer f.Close()
-
-	scan := bufio.NewScanner(f)
-	scan.Split(bufio.ScanLines)
-
-	var s []string
-	for scan.Scan() {
-		s = append(s, scan.Text())
-	}
-	return s
-}
-
 // Put compiled file next to the .dbingore file,
 // or call the executable and pass the directory of the .dbignore file.
 func main() {
@@ -68,19 +47,12 @@ func main() {
 	<- done
 }
 
-// Return the files and directories in a directory. The result is unsorted.
-func readDirNames(dirname string) []os.FileInfo {
-	f, err := os.Open(dirname)
-	if err != nil {
-		return nil
-	}
-	names, err := f.Readdir(-1)
-	f.Close()
-	if err != nil {
-		return nil
-	}
-	return names
+type Ignore struct {
+	ignore []string // Slice of the directory names that will be ignored.
+	ignoreMap map[string]bool // Verify if dir in ignore. Maps the path to a bool.
+	w *fsnotify.Watcher
 }
+
 
 // Walk the root directories and follow every directory that is not ignored.
 // .git directory is automatically ignored.
@@ -109,22 +81,6 @@ func Walker(i Ignore, root string) []string {
 	return dirs
 }
 
-
-// Run a shell/ cmd command.
-func execute(bin string, args ...string) string{
-	cmd := exec.Command(bin, args...)
-	var b  bytes.Buffer
-
-	cmd.Stdout = &b
-	cmd.Stderr = os.Stderr
-
-	err := cmd.Run()
-
-	if err != nil {
-		fmt.Println(err)
-	}
-	return b.String()
-}
 
 // Create a new file watcher. This function describes the callback events.
 func (i *Ignore)newWatcher() {
@@ -197,4 +153,49 @@ func dbinclude(im map[string]bool) {
 			}
 		}
 	}
+}
+
+// Return a slice with all the lines of a file
+func readLine(path string) []string {
+	f, _ := os.Open(path)
+	defer f.Close()
+
+	scan := bufio.NewScanner(f)
+	scan.Split(bufio.ScanLines)
+
+	var s []string
+	for scan.Scan() {
+		s = append(s, scan.Text())
+	}
+	return s
+}
+
+// Return the files and directories in a directory. The result is unsorted.
+func readDirNames(dirname string) []os.FileInfo {
+	f, err := os.Open(dirname)
+	if err != nil {
+		return nil
+	}
+	names, err := f.Readdir(-1)
+	f.Close()
+	if err != nil {
+		return nil
+	}
+	return names
+}
+
+// Run a shell/ cmd command.
+func execute(bin string, args ...string) string{
+	cmd := exec.Command(bin, args...)
+	var b  bytes.Buffer
+
+	cmd.Stdout = &b
+	cmd.Stderr = os.Stderr
+
+	err := cmd.Run()
+
+	if err != nil {
+		fmt.Println(err)
+	}
+	return b.String()
 }
