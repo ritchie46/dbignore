@@ -6,7 +6,7 @@ and will exclude files with selective sync on creation.
 Installing node_modules won't cause a cpu stress test anymore!
 
 * [Dropbox cli is required](https://www.dropbox.com/install-linux)
-* The .dbignore does not support globbing or mask patterns. It is just a list with directory names.
+* The .dbignore does not support globbing or mask patterns. It is just a list with directory names. [example](./.dbignore)
 
 
 ## Installation
