@@ -15,7 +15,7 @@ import (
 // or call the executable and pass the directory of the .dbignore file.
 func main() {
 	var root string
-	if len(os.Args) == 0 {
+	if len(os.Args) == 1 {
 		f, _ :=  os.Executable()
 		root = filepath.Dir(f)
 	}else {
